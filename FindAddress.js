@@ -1,41 +1,70 @@
 import React, { useState } from 'react';
-import { StyleSheet, StatusBar, View, TextInput, Button } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { StyleSheet, StatusBar, View, TextInput, FlatList, Dimensions, Alert} from 'react-native';
+import { Button, ListItem, CheckBox } from 'react-native-elements';
+import 'react-native-get-random-values'
+import { v4 as uuid } from 'uuid'
 
 const API_URL = "http://www.mapquestapi.com/geocoding/v1/address";
 const API_KEY = "nk4AOXVkJGl4bHJ7ycsAQdTN2JRd4YW1";
 const INITIAL_REGION = { latitude: 60.200692, longitude: 24.934302, latitudeDelta: 0.003, longitudeDelta: 0.002, };
 const INITIAL_MARKER = { latitude: 60.200692, longitude: 24.934302 }
+const INITIAL_ADDRESS = "Helsinki"
 
-export default function App() {
-  const [latLng, setLatLng] = useState(INITIAL_REGION);
-  const [marker, setMarker] = useState(INITIAL_MARKER);
-  const [locationAddress, setLocationAddress] = useState('Helsinki');
+export default function FindAddress({ navigation }) {
+  const [locationAddress, setLocationAddress] = useState(INITIAL_ADDRESS);
+  const [locations, setLocations] = useState([{
+    marker: INITIAL_MARKER,
+    region: INITIAL_REGION,
+    address: INITIAL_ADDRESS,
+    id: uuid(),
+    saveLocation: saveLocation
+  }]);
 
   const fetchData = () => {
     fetch(API_URL + "?key=" + API_KEY + "&location=" + locationAddress, { method: 'GET' })
       .then(res => res.json())
       .then((resJson) => {
-        setLatLng(
-          {
+        const newLocation = {
+          marker: {
+            latitude: resJson.results[0].locations[0].latLng.lat,
+            longitude: resJson.results[0].locations[0].latLng.lng
+          },
+          region: {
             latitude: resJson.results[0].locations[0].latLng.lat,
             longitude: resJson.results[0].locations[0].latLng.lng,
             latitudeDelta: 0.003,
             longitudeDelta: 0.002,
-          }
-        );
-        setMarker({
-          latitude: resJson.results[0].locations[0].latLng.lat,
-          longitude: resJson.results[0].locations[0].latLng.lng
-        })
+          },
+          address: locationAddress,
+          id: uuid(),
+          saveLocation: saveLocation
+        }
+        showLocation(newLocation);
       })
       .catch((error) => {
         console.error(error);
       });
   }
 
+  const showLocation = (item) => {
+    navigation.navigate('Map', { item })
+  }
+
+  const saveLocation = (location) => {
+    const newList = locations.concat(location);
+    setLocations(newList);
+    alert('Location saved');
+  }
+
+  const deleteLocation = (id) => {
+    var newItems = locations.filter((item) => item.id !== id);
+    setLocations(newItems);
+  }
+
   return (
     <View style={styles.container}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      </View>
       <TextInput
         style={styles.input}
         onChangeText={setLocationAddress}
@@ -43,13 +72,32 @@ export default function App() {
       />
       <Button
         onPress={fetchData}
-        title="Find Location"
+        title="Show location"
       />
-      <MapView
-        style={styles.map}
-        region={latLng}>
-        <Marker coordinate={marker} title={locationAddress} />
-      </MapView>
+      <FlatList
+        renderItem={({ item }) =>
+          <View style={styles.listcontainer} >
+            <View onStartShouldSetResponder={
+              (item) => showLocation(item)
+            }>
+              <ListItem bottomDivider>
+                <ListItem.Content style={{ backgroundColor: "#eee", height: 50 }}>
+                  <ListItem.Title>
+                    {item.address}
+                  </ListItem.Title>
+                </ListItem.Content>
+                <CheckBox
+                  iconType='material'
+                  checkedIcon='clear'
+                  checkedColor='red'
+                  checked="true"
+                  onPress={() => deleteLocation(item.id)}
+                />
+              </ListItem>
+            </View>
+          </View>}
+        data={locations}
+      />
     </View>
   );
 }
@@ -62,10 +110,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  map: {
-    flex: 1,
-    width: "100%",
-    height: "100%"
+  listcontainer: {
+    backgroundColor: "black",
+    width: Dimensions.get('window').width,
+    height: 90,
+    flexDirection: 'column',
   },
   input: {
     height: 40,
